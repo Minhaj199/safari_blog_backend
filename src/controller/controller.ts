@@ -157,6 +157,7 @@ export const userController = {
            name:req.userName
           }
         })
+        console.log(data)
         if(data){
 
           res.json({status:true})
@@ -195,12 +196,12 @@ export const userController = {
     let liked=elem.likes.some((id)=>id.equals(new Types.ObjectId(userID)))
     let disliked =elem.dislikes.some((id)=>id.equals(new Types.ObjectId(userID)))
     if(liked){
-      return {...elem,reactionStusut:'liked'}
+      return {...elem,reactionStutus:'liked'}
     }else if(disliked){
 
-      return {...elem,reactionStusut:'disliked'}
+      return {...elem,reactionStutus:'disliked'}
     }else{
-      return {...elem,reactionStatus:'no reaction'}
+      return {...elem,reactionStutus:'no reaction'}
     }
     })
    res.json(data)
@@ -241,9 +242,9 @@ export const userController = {
 
   }
  
-    await article.save();
+    const data=await article.save();
  
-  res.json({status:'good'})   
+  res.json(data)   
 } catch (error) {
   console.log(error)
       next(error)
