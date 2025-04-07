@@ -1,16 +1,14 @@
 import { NextFunction, Request, Response } from "express";
 import { userModel } from "../model/user.js";
-import {  z } from "zod";
+import { z } from "zod";
 import { isAgeBetween18And60 } from "../utilities/ageValidator.js";
 import { passwordComparing } from "../utilities/bcrypt.js";
-import {  userDocument } from "../types/interfaces.js";
+import {  ArticleDocument,  userDocument } from "../types/interfaces.js";
 import { createToken } from "../utilities/jwt.js";
-import  { Types } from "mongoose";
+import { Types } from "mongoose";
 import { customError } from "../utilities/customeError.js";
 import { articleModel } from "../model/article.js";
-
-
-
+import { cloudinaryUpload } from "../utilities/cloudinary.js";
 
 export const userController = {
   checkEmailExist: async (req: Request, res: Response, next: NextFunction) => {
@@ -45,12 +43,19 @@ export const userController = {
       const registerSchema = z
         .object({
           firstName: z
-            .string().trim()
-            .min(2, "First name must be at least 2 characters").max(15,'First name must be less than 15 characters'),
+            .string()
+            .trim()
+            .min(2, "First name must be at least 2 characters")
+            .max(15, "First name must be less than 15 characters"),
           lastName: z
-            .string().trim()
-            .min(2, "Last name must be at least 2 characters").max(10,"First name must be less than 10 characters"),
-          phone: z.string().trim().min(10, "Phone number must be at least 10 digits"),
+            .string()
+            .trim()
+            .min(2, "Last name must be at least 2 characters")
+            .max(10, "First name must be less than 10 characters"),
+          phone: z
+            .string()
+            .trim()
+            .min(10, "Phone number must be at least 10 digits"),
           email: z.string().trim().email("Please enter a valid email address"),
           dob: z.string({
             required_error: "Date of birth is required",
@@ -99,156 +104,239 @@ export const userController = {
         throw new Error("input data error");
       }
     } catch (error) {
-     
       next(error);
     }
   },
   login: async (req: Request, res: Response, next: NextFunction) => {
-    try { 
-        const { identifier, password}=req.body
-        const data=z.object({
-            identifier: z.string().min(1, "Email or phone is required"),
-            password: z.string().min(1, "Password is required"),
-          })
-          const result=data.safeParse({identifier,password})
-          if(result.success){
-              const authitcate:userDocument|null=await userModel.findOne({$or:[{phone:identifier},{email:identifier}]})
-              
-              if(authitcate){
-                const isPasswordMatched=await passwordComparing(password,authitcate.password)
-                if(isPasswordMatched){
-                    const id=(authitcate._id instanceof Types.ObjectId )?authitcate.id:''
-                    const token=createToken(id,`${authitcate.firstName} ${authitcate.lastName}`)
-                    res.json({status:true,message:'password matched',token:token})
-                }else{
-                    throw new Error('incorrect password')
-                }
-              }else{
-                throw new Error('user not found')
-              }
-          }else{
-            throw new Error('validatation failed')
-          }
-          
+    try {
+      const { identifier, password } = req.body;
+      const data = z.object({
+        identifier: z.string().min(1, "Email or phone is required"),
+        password: z.string().min(1, "Password is required"),
+      });
+      const result = data.safeParse({ identifier, password });
+      if (result.success) {
+        const authitcate: userDocument | null = await userModel.findOne({
+          $or: [{ phone: identifier }, { email: identifier }],
+        });
 
+        if (authitcate) {
+          const isPasswordMatched = await passwordComparing(
+            password,
+            authitcate.password
+          );
+          if (isPasswordMatched) {
+            const id =
+              authitcate._id instanceof Types.ObjectId ? authitcate.id : "";
+            const token = createToken(
+              id,
+              `${authitcate.firstName} ${authitcate.lastName}`
+            );
+            res.json({
+              status: true,
+              message: "password matched",
+              token: token,
+            });
+          } else {
+            throw new Error("incorrect password");
+          }
+        } else {
+          throw new Error("user not found");
+        }
+      } else {
+        throw new Error("validatation failed");
+      }
     } catch (error) {
-        next(error)
+      next(error);
     }
   },
   creatArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userID=req.userID
-      if(!userID||typeof userID!=='string'){
-        throw customError('user id not found',401)
+      const userID = req.userID;
+      if (!userID || typeof userID !== "string") {
+        throw customError("user id not found", 401);
       }
-     const {
-        categories,
-        content,
+      console.log(req.file)
+      const url=await cloudinaryUpload(req.file?.path||'')
+      console.log(url)
+      const incomingData=JSON.parse(req.body.datas)
+      const { categories, content, description, titile: title } = incomingData;
+      const data = await articleModel.create({
+        title,
+        categories: categories.length > 0 ? categories : ["Other"],
         description,
-        titile:title
-      }=req.body
-        const data=await articleModel.create({
-          title,
-          categories,
-          description,
-          content,
-          author:{
-           id:new Types.ObjectId(userID),
-           name:req.userName
-          }
-        })
-        console.log(data)
-        if(data){
-
-          res.json({status:true})
-        }else{
-          throw new Error('error on article creation')
-        }
+        content,
+        author: {
+          id: new Types.ObjectId(userID),
+          name: req.userName,
+        },
+        image:url
+      });
+      console.log(req.body);
+      console.log(req.body);
+      if (data) {
+        res.json({ status: true });
+      } else {
+        throw new Error("error on article creation");
+      }
     } catch (error) {
-      console.log(error)
-      next(error)      
+      console.log(error);
+      next(error);
     }
-  },  
+  },
   fetchcategory: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userID=req.userID
-      if(!userID&&typeof userID!=='string'){
-        throw customError('authentiacation failed',401)
+      const userID = req.userID;
+      if (!userID && typeof userID !== "string") {
+        throw customError("authentiacation failed", 401);
       }
-     const preference=await userModel.findOne({_id:userID},{_id:0,articlePreferences:1}).lean()
-     if(preference){
-      res.json({preference:Object.values(preference).flat()})
-     }else{
-      res.json({preference:[]})
-     }
+      const preference = await userModel
+        .findOne({ _id: userID }, { _id: 0, articlePreferences: 1 })
+        .lean();
+      if (preference) {
+        res.json({ preference: Object.values(preference).flat() });
+      } else {
+        res.json({ preference: [] });
+      }
     } catch (error) {
-     next(error)
+      next(error);
     }
-  }, 
-  getArticle:async(req:Request,res:Response,next:NextFunction)=>{
-  try {
-   const userID=req.userID
-   if(!userID&&typeof userID!=='string'){
-    throw customError('',401)
-   } 
-   let data=await articleModel.find({blocks:{$nin:[new Types.ObjectId(userID)]}}).lean()
-    data=data.map(elem=>{
-    let liked=elem.likes.some((id)=>id.equals(new Types.ObjectId(userID)))
-    let disliked =elem.dislikes.some((id)=>id.equals(new Types.ObjectId(userID)))
-    if(liked){
-      return {...elem,reactionStutus:'liked'}
-    }else if(disliked){
-
-      return {...elem,reactionStutus:'disliked'}
-    }else{
-      return {...elem,reactionStutus:'no reaction'}
-    }
-    })
-   res.json(data)
-  } catch (error) {
-    next(error)
-  }
   },
-  interactions:async(req:Request,res:Response,next:NextFunction)=>{
+  getArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
-     const userID=req.userID
-     if(!userID&&typeof userID!=='string'){
-      throw customError('',401)
-     } 
-     const articleId=req.params.id
-     if(!articleId&&typeof articleId !=='string')throw new Error('article id not found')
-    const {action,toggle=true}=req.body
-    
-  const validActions = ['liked', 'disliked', 'blocked'];
-  if(!validActions.includes(action)){
-    throw new Error('invalid action')
-  }
-  const article=await articleModel.findById(articleId) 
-  if(!article){
-    throw new Error('article not fount')
-  }
-  article.likes = article.likes.filter(id => id.toString() !== userID);
-  article.dislikes = article.dislikes.filter(id => id.toString() !== userID);
-  article.blocks = article.blocks.filter(id => id.toString() !== userID);
-  const id=new Types.ObjectId(userID)
- 
-  if(!toggle){
-  
-      // Apply new interaction
-     
-      if (action === 'liked') article.likes.push(id);
-      else if (action === 'disliked') article.dislikes.push(id);
-      else if (action === 'blocked') article.blocks.push(id);
+      const userID = req.userID;
+      if (!userID && typeof userID !== "string") {
+        throw customError("", 401);
+      }
+      let data = await articleModel
+        .find({ blocks: { $nin: [new Types.ObjectId(userID)] } })
+        .sort({ _id: -1 })
+        .lean();
+      data = data.map((elem) => {
+        let liked = elem.likes.some((id) =>
+          id.equals(new Types.ObjectId(userID))
+        );
+        let disliked = elem.dislikes.some((id) =>
+          id.equals(new Types.ObjectId(userID))
+        );
+        if (liked) {
+          return { ...elem, reactionStutus: "liked" };
+        } else if (disliked) {
+          return { ...elem, reactionStutus: "disliked" };
+        } else {
+          return { ...elem, reactionStutus: "no reaction" };
+        }
+      });
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  },
+  interactions: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userID = req.userID;
+      if (!userID && typeof userID !== "string") {
+        throw customError("", 401);
+      }
+      const articleId = req.params.id;
+      if (!articleId && typeof articleId !== "string")
+        throw new Error("article id not found");
+      const { action, toggle = true } = req.body;
 
-  }
- 
-    const data=await article.save();
- 
-  res.json(data)   
-} catch (error) {
-  console.log(error)
-      next(error)
+      const validActions = ["liked", "disliked", "blocked"];
+      if (!validActions.includes(action)) {
+        throw new Error("invalid action");
+      }
+      const article = await articleModel.findById(articleId);
+      if (!article) {
+        throw new Error("article not fount");
+      }
+      article.likes = article.likes.filter((id) => id.toString() !== userID);
+      article.dislikes = article.dislikes.filter(
+        (id) => id.toString() !== userID
+      );
+      article.blocks = article.blocks.filter((id) => id.toString() !== userID);
+      const id = new Types.ObjectId(userID);
+
+      if (!toggle) {
+        // Apply new interaction
+
+        if (action === "liked") article.likes.push(id);
+        else if (action === "disliked") article.dislikes.push(id);
+        else if (action === "blocked") article.blocks.push(id);
+      }
+
+      const data = await article.save();
+
+      res.json(data);
+    } catch (error) {
+      console.log(error);
+      next(error);
     }
+  },
+  fetchArticles: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userID = req.userID;
+      if (!userID && typeof userID !== "string") {
+        throw customError();
+      }
+      const data = await articleModel
+        .find({ "author.id": new Types.ObjectId(userID) })
+        .sort({ _id: -1 });
+      res.json(data);
+    } catch (error) {
+      next(error);
     }
+  },
+  fetchArticle: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+  
+      const fetch=await articleModel.findById(req.params.id)
+      res.json(fetch)
+    } catch (error) {
+      console.log(error)
+      next(error);
+    }
+  },
+  editArticle: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if(req.file){
+        
+        const url=await cloudinaryUpload(req.file.path||'')
+        const data:ArticleDocument=JSON.parse(req.body.data)
+        if(data){
+          const result=await articleModel.findByIdAndUpdate({_id:data._id},{$set:{...data,image:url}})
+          res.json(result)
+          return
+        }
+      }else{
+        const data:ArticleDocument=JSON.parse(req.body.data)
+       
+        if(data){
+          const result=await articleModel.findByIdAndUpdate({_id:data._id},{$set:data},{new:true})
+         console.log(result)
+          res.json(result)
+        return
+        }
+      }
+      throw new Error('error on updation')
+    } catch (error) {
+      console.log(error)
+      next(error);
+    }
+  },
+  delteArticle: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+    const id=req.params.id
+    if(!id||typeof id!=='string'){
+      throw customError
+    }
+    const response=await articleModel.findByIdAndDelete(id)
+    res.json(response)
+    } catch (error) {
+      console.log(error)
+      next(error);
+    }
+  },
   
 };

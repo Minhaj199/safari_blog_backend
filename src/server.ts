@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import cors from 'cors' 
 import { connectionDB } from './config/db.js' 
 import userRouter from './router/user.js'
+
 dotenv.config()
 
 const corsOptions = {
@@ -16,6 +17,7 @@ app.use(cors(corsOptions));
 app.use(express.urlencoded());
 app.use(express.json());
 
+  
 
 
 app.use('/api',userRouter)

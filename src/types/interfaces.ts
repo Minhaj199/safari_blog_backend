@@ -28,3 +28,4 @@ export interface Article {
     blocks:Types.ObjectId[]
   }
 export interface userDocument extends Document,User{}
+export interface ArticleDocument extends Document,Article{}

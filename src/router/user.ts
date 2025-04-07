@@ -13,5 +13,9 @@ userRouter.post('/create_article',userAuth,upload.single('file'),userController.
 userRouter.get('/user_preference',userAuth,userController.fetchcategory)
 userRouter.get('/get_article',userAuth,userController.getArticle)
 userRouter.patch('/interactions/:id',userAuth,userController.interactions)
+userRouter.get('/fetch_articles',userAuth,userController.fetchArticles)
+userRouter.get('/get_article/:id',userAuth,userController.fetchArticle)
+userRouter.put('/edit_article',userAuth,upload.single('file'),userController.editArticle)
+userRouter.delete('/delete_article/:id',userAuth,userController.delteArticle)
 
 export default userRouter
