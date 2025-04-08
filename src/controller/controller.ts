@@ -3,7 +3,7 @@ import { userModel } from "../model/user.js";
 import { z } from "zod";
 import { isAgeBetween18And60 } from "../utilities/ageValidator.js";
 import { passwordComparing } from "../utilities/bcrypt.js";
-import {  ArticleDocument,  userDocument } from "../types/interfaces.js";
+import { ArticleDocument, UserDocument } from "../types/interfaces.js";
 import { createToken } from "../utilities/jwt.js";
 import { Types } from "mongoose";
 import { customError } from "../utilities/customeError.js";
@@ -116,7 +116,7 @@ export const userController = {
       });
       const result = data.safeParse({ identifier, password });
       if (result.success) {
-        const authitcate: userDocument | null = await userModel.findOne({
+        const authitcate: UserDocument | null = await userModel.findOne({
           $or: [{ phone: identifier }, { email: identifier }],
         });
 
@@ -156,10 +156,10 @@ export const userController = {
       if (!userID || typeof userID !== "string") {
         throw customError("user id not found", 401);
       }
-      console.log(req.file)
-      const url=await cloudinaryUpload(req.file?.path||'')
-      console.log(url)
-      const incomingData=JSON.parse(req.body.datas)
+
+      const url = await cloudinaryUpload(req.file?.path || "");
+
+      const incomingData = JSON.parse(req.body.datas);
       const { categories, content, description, titile: title } = incomingData;
       const data = await articleModel.create({
         title,
@@ -170,17 +170,15 @@ export const userController = {
           id: new Types.ObjectId(userID),
           name: req.userName,
         },
-        image:url
+        image: url,
       });
-      console.log(req.body);
-      console.log(req.body);
+
       if (data) {
         res.json({ status: true });
       } else {
         throw new Error("error on article creation");
       }
     } catch (error) {
-      console.log(error);
       next(error);
     }
   },
@@ -270,7 +268,6 @@ export const userController = {
 
       res.json(data);
     } catch (error) {
-      console.log(error);
       next(error);
     }
   },
@@ -290,53 +287,199 @@ export const userController = {
   },
   fetchArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
-  
-      const fetch=await articleModel.findById(req.params.id)
-      res.json(fetch)
+      const fetch = await articleModel.findById(req.params.id);
+      res.json(fetch);
     } catch (error) {
-      console.log(error)
       next(error);
     }
   },
   editArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if(req.file){
-        
-        const url=await cloudinaryUpload(req.file.path||'')
-        const data:ArticleDocument=JSON.parse(req.body.data)
-        if(data){
-          const result=await articleModel.findByIdAndUpdate({_id:data._id},{$set:{...data,image:url}})
-          res.json(result)
-          return
+      if (req.file) {
+        const url = await cloudinaryUpload(req.file.path || "");
+        const data: ArticleDocument = JSON.parse(req.body.data);
+        if (data) {
+          const result = await articleModel.findByIdAndUpdate(
+            { _id: data._id },
+            { $set: { ...data, image: url } }
+          );
+          res.json(result);
+          return;
         }
-      }else{
-        const data:ArticleDocument=JSON.parse(req.body.data)
-       
-        if(data){
-          const result=await articleModel.findByIdAndUpdate({_id:data._id},{$set:data},{new:true})
-         console.log(result)
-          res.json(result)
-        return
+      } else {
+        const data: ArticleDocument = JSON.parse(req.body.data);
+
+        if (data) {
+          const result = await articleModel.findByIdAndUpdate(
+            { _id: data._id },
+            { $set: data },
+            { new: true }
+          );
+
+          res.json(result);
+          return;
         }
       }
-      throw new Error('error on updation')
+      throw new Error("error on updation");
     } catch (error) {
-      console.log(error)
       next(error);
     }
   },
   delteArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
-    const id=req.params.id
-    if(!id||typeof id!=='string'){
-      throw customError
-    }
-    const response=await articleModel.findByIdAndDelete(id)
-    res.json(response)
+      const id = req.params.id;
+      if (!id || typeof id !== "string") {
+        throw customError;
+      }
+      const response = await articleModel.findByIdAndDelete(id);
+      res.json(response);
     } catch (error) {
-      console.log(error)
       next(error);
     }
   },
-  
+  fetchUser: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userID = req.userID;
+      if (!userID || typeof userID !== "string") {
+        throw customError;
+      }
+      const response = await userModel.findById(userID);
+      const data: {
+        article: { count: number }[];
+        reaction: { like: number; blocked: number }[];
+      }[] = await articleModel.aggregate([
+        {
+          $facet: {
+            article: [
+              { $match: { "author.id": new Types.ObjectId(userID) } },
+              { $count: "count" },
+            ],
+            reaction: [
+              { $match: { "author.id": new Types.ObjectId(userID) } },
+              {
+                $project: {
+                  id: 1,
+                  likes: { $size: "$likes" },
+                  dislikes: { $size: "$dislikes" },
+                  blockes: { $size: "$blocks" },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  like: { $sum: "$likes" },
+                  blocked: { $sum: "$blocks" },
+                },
+              },
+            ],
+          },
+        },
+      ]);
+      const acountStatics: { like: number; blocked: number; articles: number } =
+        {
+          articles: data[0]?.article[0]?.count ?? 0,
+          blocked: data[0]?.reaction[0]?.blocked ?? 0,
+          like: data[0]?.reaction[0]?.like ?? 0,
+        };
+
+      res.json({ user: response, reaction: acountStatics });
+    } catch (error) {
+      next(error);
+    }
+  },
+  editProfile: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.body.action && req.body.action === "edit category") {
+        const { selectedCategories: articlePreferences } = req.body;
+        const userID = req.userID;
+        if (!userID && typeof userID !== "string") {
+          throw customError();
+        }
+
+        const response = await userModel.findByIdAndUpdate(userID, {
+          articlePreferences,
+        });
+        if (response) {
+          res.json("complted");
+        } else {
+          throw new Error("error on category updation");
+        }
+      } else if (
+        req.body.action &&
+        req.body.action === "update profile details"
+      ) {
+        const userID = req.userID;
+        if (!userID && typeof userID !== "string") {
+          throw customError();
+        }
+        const {
+          firstName,
+          dob,
+          email,
+          lastName,
+          phone,
+        }: {
+          firstName: string;
+          dob: string;
+          email: string;
+          lastName: string;
+          phone: string;
+        } = req.body.formData;
+        const dataToBeUpdated = {
+          firstName,
+          lastName,
+          dob: new Date(dob),
+          email,
+          phone,
+        };
+
+        if (dataToBeUpdated) {
+          const response = await userModel.findByIdAndUpdate(
+            userID,
+            { $set: dataToBeUpdated },
+            { new: true }
+          );
+
+          res.json(response);
+        } else {
+          throw new Error("error on updation");
+        }
+      } else if (req.body.action && req.body.action === "password change") {
+        const userID = req.userID;
+        if (!userID && typeof userID !== "string") {
+          throw customError();
+        }
+        const { newPassword, current } = req.body;
+        const userData: UserDocument | null = await userModel.findById(userID);
+        if (
+          await passwordComparing(current || "123", userData?.password || "")
+        ) {
+          if (userData && userData.password) {
+            userData.password = newPassword;
+            const response = await userData.save();
+            res.json(response);
+            return;
+          }
+          throw new Error("error on password change");
+        } else {
+          throw new Error("current password not mathed");
+        }
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
+  deleteProfile: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userID = req.userID;
+      if (!userID) {
+        throw customError;
+      }
+      await userModel.findByIdAndDelete(userID);
+
+      res.json(true);
+    } catch (error) {
+      next(error);
+    }
+  },
 };

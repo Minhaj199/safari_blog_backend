@@ -3,7 +3,8 @@
 	"main": "server.ts",
 	"type": "module",
 	"scripts": {
-		"dev": "nodemon"
+		"dev": "nodemon",
+		"build": "tsc&& nodemon ./dist/server.js"
 	},
 	"dependencies": {
 		"bcrypt": "^5.1.1",

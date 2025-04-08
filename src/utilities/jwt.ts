@@ -1,11 +1,10 @@
 import jwt from "jsonwebtoken";
 import { customError } from "./customeError.js";
 
-
-export function createToken(id:string,name:string) {
+export function createToken(id: string, name: string) {
   try {
     const token: string = jwt.sign(
-      { id,name},
+      { id, name },
       process.env.JEW_KEY as string,
       { expiresIn: "1h" }
     );
@@ -26,10 +25,10 @@ export function verifyToken(token: unknown) {
     return decode as { id: string; name: string };
   } catch (error) {
     if (error instanceof Error) {
-      if(error.message==='jwt expired'){
-        throw customError(error.message,401)
+      if (error.message === "jwt expired") {
+        throw customError(error.message, 401);
       }
-      throw new Error('something');
+      throw new Error("something");
     }
     throw new Error("internal server error");
   }
