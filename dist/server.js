@@ -13,8 +13,12 @@ const app = express();
 app.use(cors(corsOptions));
 app.use(express.urlencoded());
 app.use(express.json());
+app.get('/',(req,res)=>{
+    res.json('hiii')
+})
 app.use("/api", userRouter);
 connectionDB();
+
 app.listen(process.env.PORT, () => {
     console.log(`http://localhost:${process.env.PORT}`);
 });

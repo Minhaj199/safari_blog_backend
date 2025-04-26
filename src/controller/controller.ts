@@ -153,6 +153,7 @@ export const userController = {
   creatArticle: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userID = req.userID;
+      console.log(req.file)
       if (!userID || typeof userID !== "string") {
         throw customError("user id not found", 401);
       }

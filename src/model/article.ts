@@ -21,7 +21,7 @@ const schema = new Schema<Article>({
     default:
       "https://media.istockphoto.com/id/1458215547/photo/brown-bear.jpg?s=612x612&w=0&k=20&c=MRQhtNC_-P0llLRwwA3wmbQL6iroSjUla1PmvvEWCZU=",
   },
-  publishedAt: { type: Date, default: new Date() },
+  publishedAt: { type: Date, default:()=> new Date() },
   likes: [{ type: mongoose.Schema.ObjectId, ref: "users" }],
   blocks: [{ type: mongoose.Schema.ObjectId, ref: "users" }],
 });

@@ -21,6 +21,7 @@ export async function cloudinaryUpload(path) {
         }
     }
     catch (error) {
+        console.log(error)
         throw new Error(error.message || "error on cloudinary");
     }
 }

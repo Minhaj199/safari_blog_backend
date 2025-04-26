@@ -132,6 +132,7 @@ export const userController = {
     },
     creatArticle: async (req, res, next) => {
         try {
+            console.log(req.file)
             const userID = req.userID;
             if (!userID || typeof userID !== "string") {
                 throw customError("user id not found", 401);
